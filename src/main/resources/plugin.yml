@@ -1,0 +1,7 @@
+name: Land-Claim
+version: 1.0.0
+main: com.surv.Claim
+description: A land claiming plugin, using campfires
+author: Surv
+website: https://dustyhub.net
+api-version: 1.19
