@@ -12,7 +12,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 public class Claim extends JavaPlugin {
   @Override
   public void onEnable() {
-    getServer().getPluginManager().registerEvents(new land(), this);
+    // getServer().getPluginManager().registerEvents(new land(), this);
     getServer().getPluginManager().registerEvents(new campfire(), this);
     getServer().getConsoleSender().sendMessage("fuck you we is live");
   }
