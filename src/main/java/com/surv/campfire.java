@@ -8,13 +8,15 @@ import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
+import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.ExplosionPrimeEvent;
 
 import com.destroystokyo.paper.event.block.BlockDestroyEvent;
@@ -23,10 +25,33 @@ import com.surv.land.vecPos;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 
+//[NEXT]
+//TODO(needs testing): for the player to add a friend they will hit a player with their shield
+//to remove friends.. they will burn their shield(removing all friends)
+//Must be tossed and not dropped(aka death drop does not count)
+
+//TODO: somehow figure out how to deal with per camp settings..
+//aka [can pick crops] [can kill live stock]
+//**This can actually be part of the camp settings
+//ok ok maybe the way this is setup is by hitting the campfire with a sword-axe-or-hoe
+
+//TODO: add more sounds/effects/and messages.
+
+//TODO: implement so that somehow the player can
+//teleport to their claim with the Magic Mirror
+//also tp to friends claims
+
+//TODO(YES): punching the campfire/ or when placing the banner will
+//tell the player how to configure things for the camp
+
+//FIXME: there was another idea or something that i had to fix
+
+//TODO: add some check to limit amount of initial claims.
+//need to limit claims, can't have player claim all the land they wantt
+
+//TODO:should a claim protect chests with inventories??
+
 //[not sure]
-//TODO([DONE?]explosion will remove the camp): need to figure how to prevent it from being destroyed
-//or if destroyed removed it from camps list.
-//FIXME: if claimed prevent explosion destruction
 
 //TODO([i am fucked]): implement presistant camp.. aka save and load on reboot
 //SAVEs
@@ -40,25 +65,6 @@ import net.kyori.adventure.text.Component;
 //NOTE: i was gonna make its so you could not place stuff with buckets outside
 //of camps, but that should just be left to claims.
 
-//[NEXT]
-//TODO: for the player to add a friend they will hit a player with their shield
-//to remove friends.. they will burn their shield(removing all friends)
-//Must be tossed and not dropped(aka death drop does not count)
-
-//TODO: somehow figure out how to deal with pair camp settings..
-//aka [can pick crops] [can kill live stock]
-//**This can actually be part of the camp settings
-//ok ok maybe the way this is setup is by hitting the campfire with a sword-axe-or-hoe
-
-//[AT SOME POINT]
-//TODO: implement so that somehow the player can
-//teleport to their claim with the Magic Mirror
-//also tp to friends claims
-
-//FIXME: there was another idea or something that i had to fix
-
-//FIXME(current fix allow placement of furnace): umm boss how do you make a campfire??
-
 public class campfire implements Listener {
 
 	public static int default_radius = 6; // NOTE: this needs to be increased after testing
@@ -67,8 +73,6 @@ public class campfire implements Listener {
 	ArrayList<owner_settings> owners = new ArrayList<>();
 	camp camper = new camp();
 
-	// TODO: add some check to limit amount of initial claims
-	// NOTE: owner is used to get permissions/rules for the claim
 	class owner_settings {
 		String name;
 		// ArrayList<camp> claims; // max 3 claims
@@ -95,57 +99,88 @@ public class campfire implements Listener {
 
 	class camp {
 		vecPos pos;
-		int radiusTimer; // NOTE: currently not in use
+		// TODO: add a dimentional check
+		World dimention;
+		private int radiusTimer; // NOTE: currently not in use
 		String owner;
 		boolean pick_crops, live_stock;
 
+		// TODO: check if location is a camp.. aka the block
+		public camp isCamp(Location loc) {
+			if (campfires.size() > 0) {
+				for (camp c : campfires) {
+					if (c.withInRadius(loc, default_radius)) {
+						return c;
+					}
+				}
+			}
+			// not a camp
+			return null;
+		}
+
+		public void radiusTick() {
+			if (campfires.size() > 0) {
+				for (camp c : campfires) {
+					if (c.radiusTimer > 0) {
+						// int new_value = c.radiusTimer--;
+						c.radiusTimer--;
+						// return this.radiusTimer--;
+						// this.radiusTimer = new_value;
+						System.out.print(String.format("timer at: 0", c.radiusTimer));
+					}
+
+				}
+
+			}
+		}
+
 		// this claims the camp
 		public void claimCamp(Location loc, Player p) {
-			this.defineOwnerSettings(p);
-			for (camp c : campfires) {
-				if (c.withInRadius(loc, default_radius)) {
-					Audience audience = Audience.audience(p);
-					if (c.owner == null) {
-						c.owner = p.getName();
-						// p.sendMessage(String.format("Congrats, you have claimed this camp!"));
-						// p.sendTitle();
+			var found = this.isCamp(loc);
+			if (found != null) {
+				Audience audience = Audience.audience(p);
+				if (found.owner == null) {
+					found.owner = p.getName();
+					// p.sendMessage(String.format("Congrats, you have claimed this camp!"));
+					// p.sendTitle();
+					audience.sendActionBar(
+							() -> Component.text(String.format(ChatColor.GOLD + "Congrats, you have claimed this camp!")));
+					this.defineOwnerSettings(p); // YES?
+					// should maybe tell the player how many claims they have now.
+				} else {
+					// already claimed
+					// FIXME: somehow after claiming this code runs..
+					String message = "This has already been claimed, by";
+					if (found.owner == p.getName()) {
+						// p.sendMessage(String.format("%s you!", message));
 						audience.sendActionBar(
-								() -> Component.text(String.format(ChatColor.GOLD + "Congrats, you have claimed this camp!")));
-						// should maybe tell the player how many claims they have now.
+								() -> Component.text(String.format(ChatColor.GOLD + "%s you!", message)));
 					} else {
-						// already claimed
-						// FIXME: somehow after claiming this code runs..
-						String message = "This has already been claimed, by";
-						if (c.owner == p.getName()) {
-							// p.sendMessage(String.format("%s you!", message));
-							audience.sendActionBar(
-									() -> Component.text(String.format(ChatColor.GOLD + "%s you!", message)));
-						} else {
-							audience.sendActionBar(
-									() -> Component.text(String.format(ChatColor.GOLD + "%s %s", message, c.owner)));
-							// p.sendMessage(String.format("%s %s", message, c.owner));
-						}
+						audience.sendActionBar(
+								() -> Component.text(String.format(ChatColor.GOLD + "%s %s", message, found.owner)));
+						// p.sendMessage(String.format("%s %s", message, c.owner));
 					}
-					break;
 				}
+
 			}
 		}
 
 		// this check is owner has settings, if not it creates it
 		private void defineOwnerSettings(Player p) {
+			boolean ownerIsDefined = false;
 			if (owners.size() > 0) {
-				boolean ownerIsDefined = false;
 				for (owner_settings o : owners) {// get all settings
 					if (o.name == p.getName()) {
 						ownerIsDefined = true;
 						break;
 					}
 				}
-				if (!ownerIsDefined) {
-					owner_settings new_owner = new owner_settings();
-					new_owner.name = p.getName();
-					owners.add(new_owner);
-				}
+			}
+			if (!ownerIsDefined) {
+				owner_settings new_owner = new owner_settings();
+				new_owner.friends = new ArrayList<String>();
+				new_owner.name = p.getName();
+				owners.add(new_owner);
 			}
 		}
 
@@ -168,8 +203,45 @@ public class campfire implements Listener {
 			return false;
 		}
 
-		// within campfire
-		// FIXME: FUCK numbers add my own type
+		// FIXME: Need to test
+		public void addFriend(Location loc, Player p, Player d) {
+			if (campfires.size() > 0) {
+				for (camp c : campfires) {
+					if (c.withInRadius(loc, default_radius)) {
+						if (c.owner == p.getName()) {
+							// the attacker is the camp site owner
+							// should not need to check the size of owners
+							for (owner_settings o : owners) {
+								boolean contains_friend = false;
+								for (String f : o.friends) {
+									if (f == d.getName()) {
+										Audience.audience(p).sendActionBar(
+												() -> Component.text(
+														String.format(ChatColor.GRAY + String.format("%s, is already a friend.", d.getName()))));
+									}
+								}
+								if (contains_friend == false) {
+									o.friends.add(d.getName());
+									Audience.audience(p).sendActionBar(
+											() -> Component.text(
+													String.format(ChatColor.GRAY + String.format("Add %s as a friend.", d.getName()))));
+									Audience.audience(d).sendActionBar(
+											() -> Component.text(
+													String
+															.format(ChatColor.GRAY + String.format("%s, has added you as a friend.", p.getName()))));
+								}
+							}
+						} else {
+							// Audience new_audience = new Audience();
+							Audience.audience(p).sendActionBar(
+									() -> Component.text(String.format(ChatColor.GRAY + "The claim must be your's, to add friend.")));
+						} // else do nothing
+
+						break; // within campfire
+					}
+				}
+			} // if campfire 0, do nothing
+		}
 
 		public boolean canBuildDestroy(Location loc, Player p, boolean blockBreak) {
 			if (campfires.size() > 0) {
@@ -181,9 +253,11 @@ public class campfire implements Listener {
 						} else {
 							for (owner_settings o : owners) {
 								if (o.name == c.owner) {
-									for (String f : o.friends) {
-										if (f == p.getName()) {
-											return true;
+									if (o.friends != null) {
+										for (String f : o.friends) {
+											if (f == p.getName()) {
+												return true;
+											}
 										}
 									}
 								}
@@ -203,7 +277,7 @@ public class campfire implements Listener {
 		}
 		// FIXME: i need to figure these numbers shit
 
-		private boolean withInRadius(Location loc, int radius) {
+		public boolean withInRadius(Location loc, int radius) {
 			// checks if block is with the claim
 			if (land.getDistance(this.pos.x, this.pos.z, loc.blockX(), loc.getBlockZ()) <= radius) {
 				return true;
@@ -238,13 +312,16 @@ public class campfire implements Listener {
 
 	@EventHandler
 	public void onExplosionPrime(ExplosionPrimeEvent ev) {
-		int radius = (int) ev.getRadius();
+		// int radius = (int) ev.getRadius();
 		Location loc = ev.getEntity().getLocation();
 		for (camp c : campfires) {
-			if (c.withInRadius(loc, radius)) {
-				campfires.remove(c);
-				if (campfires.size() == 0) {
-					break;
+			if (c.withInRadius(loc, default_radius)) {
+				if (c.owner != null) {
+					ev.setCancelled(true);
+				} else {
+					if (c.withInRadius(loc, (int) ev.getRadius())) {
+						campfires.remove(c);
+					}
 				}
 			}
 		}
@@ -266,6 +343,7 @@ public class campfire implements Listener {
 			pos.y = block.getY();
 			pos.z = block.getZ();
 			new_camp.pos = pos;
+			new_camp.dimention = block.getLocation().getWorld();
 			boolean sameSpot = false;
 			if (campfires.size() != 0) {
 				for (camp c : campfires) {
@@ -329,6 +407,25 @@ public class campfire implements Listener {
 				}
 			}
 		}
+	}
+
+	@EventHandler
+	public void onPlayerAttack(EntityDamageByEntityEvent ev) {
+		Entity attacker = ev.getDamager();
+		Entity damaged = ev.getEntity();
+		if (attacker instanceof Player) {
+			if (damaged instanceof Player) {
+				Player player = (Player) attacker;
+				Player damagedPlayer = (Player) damaged;
+				if (player.getInventory().getItemInMainHand().getType() == Material.SHIELD) {
+					player.sendMessage("yes this should be running");
+					camper.addFriend(damagedPlayer.getLocation(), player, damagedPlayer);
+				}
+				// System.out.print(String.format("lets get the
+				// location:%s",attacker.getLocation().getBlock().getLoca);
+			}
+		}
+
 	}
 
 }
