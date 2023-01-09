@@ -14,11 +14,11 @@ public class Claim extends JavaPlugin {
   public void onEnable() {
     // getServer().getPluginManager().registerEvents(new land(), this);
     getServer().getPluginManager().registerEvents(new campfire(), this);
-    getServer().getConsoleSender().sendMessage("fuck you we is live");
+    // getServer().getConsoleSender().sendMessage("fuck you we is live");
   }
 
   @Override
   public void onDisable() {
-    getServer().getConsoleSender().sendMessage("hey now offline");
+    // getServer().getConsoleSender().sendMessage("hey now offline");
   }
 }

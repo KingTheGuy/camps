@@ -5,7 +5,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.List;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -18,7 +17,6 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.AbstractHorse;
 import org.bukkit.entity.Entity;
-import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -26,7 +24,6 @@ import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
-import org.bukkit.event.entity.ExplosionPrimeEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.server.ServerLoadEvent;
@@ -34,53 +31,59 @@ import org.bukkit.event.server.ServerLoadEvent;
 import com.destroystokyo.paper.event.block.BlockDestroyEvent;
 import com.google.common.reflect.TypeToken;
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.surv.land.vecPos;
 
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 
-//FIXME(): SAVE/LOAD works??? but when loaded its not reading the data correctly
+//*This is a land claim plugin.. why make another one of these plugins?
+// the reaason being that all the other ones require the player to use commands
+// whether in one way or another.
+//-main things are "no typing commands"..unless admin stuff
+
+//NOTES: the campfire makes the most sense as "the block"
+//it does not stack.. meaning tou wont really just have lots in the inventory.
+
+//FIXME(): im too dumb, can't figure out of to load/save correctly
 
 //[NEEDS TESTING]
-//DONE: disable farm land trampaling
-//DONE: on claim camp check if there is another claimed camp within the radius
-//DONE: prevent "friends" from breaking claimed campfire
-//DONE: for the player to add a friend they will hit a player with their shield
-//to remove friends.. they will burn their shield(removing all friends)
-//Must be tossed and not dropped(aka death drop does not count)
-//player has to click on their campfire with a shield
-//DONE: prevent none owners/friends from using:
-//lava
-//water
-//minecarts
-//armor stand
-//prevent using eggs
-//JUST PREVENT USING ITEMS
-//PREVENT PLACING whitelisted items in claimed land
-//DONE: prevent mobs from blowing up claimed areas..
-//DONE: explosions, should cancel block breaking but not damage.
-//NOTE: blown up outside of claim damaged inside claim
-//DRAGON is yes.. WITHER is no..//NOTE(is skipped this part):
-//DONE: prevent harming animals in claims
-//DONE: prevent riding unowned animals???//NOTE: chance that this is already being canceled 
-//not sure how im going to do this.. 
-//for starters prevent riding anything in claimed land
 
 //[DOING]
-//FIXME: let none camp claims overlap.
+//TODO: clean up code
+//FIXME: on camp claim check if there is another claimed camp within the radius
+//this is not working correctly
+//get the distance of a camp and check to see if the next one is closes.
+//if it is then take that camp and keep checking if anything is smaller.
 
-//FIXME(this can be really bad): can't damage monsters in claims
+//TODO: prevent harming animals in claims
+//TODO: add more sounds/effects/and messages.
 
-//FIXME(ODD): remove the "need to be near camp" when 
-//camp is claimed by someone else
-
-//TODO:NOTE(DONE, but need to be worked in): Make is so admin.. or player with tag
+//TODO:NOTE(Not sure if done..): Make is so admin.. or player with tag
 //can remove camps.. or doing anything in the camp
 
-//TODO: maybe to untable a horse you remove the saddle?
-
 //[NEXT]
+//TODO: add comfig options.
+//--prevent placing(can only place blocks within camp)
+//TODO: possibly change the way that adding friends is handled.
+//TODO: some way for the player to know where their previus claims are.
+//TODO: implement a way to trade horses.. currently horses are locked to player who tamed them.
+//TODO: figure out how to increase the size of a claim
+
+//TODO(With claims being as big as they are this may not be a good idea): 
+//somehow figure out how to deal with per camp settings..
+//aka [can pick crops] [can kill live stock]
+//**This can actually be part of the camp settings
+//NOTE: for picking crops.. let player fully break and have
+//them replant it
+//possible ways to do this.. place chest or block below campfire to
+//signiffying what can be done in the claim.
+
+//TODO: implement so that somehow the player can
+//teleport to their claim with the Magic Mirror
+//also tp to friends claims
+
+//[not sure]
+//TODO: prevent claiming if another player is in the camp's radius
+//and is not friends with the player
 //TODO(maybe): maybe do block placing differently..
 //instead of canceling it, have it be like
 //how adventure mode dose it.
@@ -90,35 +93,7 @@ import net.kyori.adventure.text.Component;
 //maybe the player needs to click the block with iron in hand
 //to re-enforce it.. idk.
 
-//TODO: somehow figure out how to deal with per camp settings..
-//aka [can pick crops] [can kill live stock]
-//**This can actually be part of the camp settings
-//ok ok maybe the way this is setup is by hitting the campfire with a sword-axe-or-hoe
-//NOTE: for picking crops.. let player fully break and have
-//them replant it
-
-//TODO: add more sounds/effects/and messages.
-
-//TODO: implement so that somehow the player can
-//teleport to their claim with the Magic Mirror
-//also tp to friends claims
-
-//TODO: punching the campfire/ or when placing the banner will
-//tell the player how to configure things for the camp
-
-//FIXME: there was another idea or something that i had to fix
-
-//TODO: add some check to limit amount of initial claims.
-//need to limit claims, can't have player claim all the land they wantt
-
-//TODO:should a claim protect chests with inventories?? //NOTE: USE BLOCK PROC if anything.. issue is the friends permission
-
-//[not sure]
-
 //TODO: figure out sql or some other save type
-
-//TODO(sure but why??): make it so blocks take a few breaks to completey delete
-//if there is no campfire near
 
 //TODO(yea i cant figure out how to use a timer): when the player punches the campfire display a radius
 
@@ -127,80 +102,46 @@ import net.kyori.adventure.text.Component;
 
 public class campfire implements Listener {
 
-	public static int default_radius = 6; // NOTE: this needs to be increased after testing
-	List<Owner_settings> owners = new ArrayList<>(); // NEEDS SAVING
+	static int default_radius = 22; // NOTE: this needs to be increased after testing
+	int maxClaims = 3;
+	ArrayList<Owner_settings> owners = new ArrayList<>(); // NEEDS SAVING
 	Camp camper = new Camp();
 
-	List<Camp> campfires = new ArrayList<>(); // NEEDS SAVING
+	ArrayList<Camp> campfires = new ArrayList<>(); // NEEDS SAVING
 	String saveFileName = "saved_camps.json";
+
+	public void saveToFile() {
+		// Gson gson = new Gson();
+		// try (FileWriter writer = new FileWriter(saveFileName)) {
+		// gson.toJson(campfires, writer);
+		// } catch (IOException o) {
+		// }
+	}
 
 	public void loadFromFile() {
 		// Gson gson = new Gson();
 		// try (FileReader reader = new FileReader(saveFileName)) {
-		// Type listType = new TypeToken<List<Camp>>() {
+		// Type arrayType = new TypeToken<ArrayList<Camp>>() {
 		// }.getType();
-		// campfires = gson.fromJson(reader, listType);
-		// // getLogger().info("Successfully loaded placed blocks from file.");
-		// } catch (IOException e) {
-		// // getLogger().warning("Failed to load placed blocks from file: " +
-		// // e.getMessage());
+		// campfires = gson.fromJson(reader, arrayType);
+		// } catch (IOException o) {
 		// }
 	}
-
-	public void saveToFile() {
-		// Gson gson = new GsonBuilder().setPrettyPrinting().create();
-		// try (FileWriter writer = new FileWriter(saveFileName, false)) {
-		// gson.toJson(campfires, writer);
-		// // getLogger().info("Successfully saved placed blocks to file.");
-		// } catch (IOException e) {
-		// // getLogger().warning("Failed to save placed blocks to file: " +
-		// // e.getMessage());
-		// }
-	}
-
-	// public void loadFromFile() {
-	// Gson gson = new Gson();
-	// try (FileReader reader = new FileReader(save_file_name)) {
-	// // FIXME: maybe i need do a for loop.. for this or
-	// // maybe on save(i think its on save)
-	// Type listType = new TypeToken<ArrayList<camp>>() {
-	// }.getType();
-	// campfires = gson.fromJson(reader, listType);
-	// System.out.println("Successfully loaded JSONArray from file.");
-	// System.out.println(new
-	// GsonBuilder().setPrettyPrinting().create().toJson(campfires));
-	// System.out.println(campfires.getClass().getName());
-	// } catch (IOException e) {
-	// e.printStackTrace();
-	// }
-	// }
-
-	// public void saveToFile() {
-	// Gson gson = new GsonBuilder().setPrettyPrinting().create();
-	// try (FileWriter writer = new FileWriter(save_file_name, false)) {
-	// gson.toJson(campfires, writer);
-	// System.out.println("Successfully saved object to file.");
-	// System.out.println(new
-	// GsonBuilder().setPrettyPrinting().create().toJson(campfires));
-	// } catch (IOException e) {
-	// e.printStackTrace();
-	// }
-	// }
 
 	@EventHandler
 	public void onServerStart(ServerLoadEvent ev) {
-		System.out.println("\033[0;31m " + new GsonBuilder().setPrettyPrinting().create().toJson(campfires));
+		System.out.println(String.format("Does this not work %s", campfires.toString()));
 		loadFromFile();
-		System.out.println("\033[0;31m " + new GsonBuilder().setPrettyPrinting().create().toJson(campfires));
+		System.out.println(String.format("Does this not work %s", campfires.toString()));
 	}
 
 	class Owner_settings {
-		String name;
-		// ArrayList<camp> claims; // max 3 claims
-		ArrayList<String> friends;
+		String playerName;
+		ArrayList<String> friendsList;
+		int numberOfClaims;
 
 		public boolean isOwner(Player p) {
-			if (this.name == p.getName()) {
+			if (playerName == p.getName()) {
 				return true;
 			}
 			return false;
@@ -208,8 +149,8 @@ public class campfire implements Listener {
 
 		public boolean isFriend(Player p) {
 			// check if the player is a friend
-			for (String f : this.friends) {
-				if (f == p.getName()) {
+			for (String friendName : friendsList) {
+				if (friendName == p.getName()) {
 					return true;
 				}
 
@@ -219,10 +160,11 @@ public class campfire implements Listener {
 	}
 
 	class Camp {
-		vecPos pos;
-		// TODO: add a dimentional check
-		String dimension;
-		private int radiusTimer; // NOTE: currently not in use
+		String dimensionName;
+		int posX;
+		int posY;
+		int posZ;
+		int radiusTimer; // NOTE: currently not in use
 		String owner;
 		boolean pick_crops, live_stock;
 
@@ -245,11 +187,12 @@ public class campfire implements Listener {
 		// smoke.display(particleLocation, p);
 		// }
 		// }
+
 		public boolean samePos(Location loc) {
 			// FIXME: on claim camp check if there is another claimed camp within the radius
-			if (this.pos.x == loc.getX()) {
-				if (this.pos.y == loc.getY()) {
-					if (this.pos.z == loc.getZ()) {
+			if (posX == loc.getX()) {
+				if (posY == loc.getY()) {
+					if (posZ == loc.getZ()) {
 						return true;
 					}
 				}
@@ -257,8 +200,8 @@ public class campfire implements Listener {
 			return false;
 		}
 
-		// TODO: check if location is a camp.. aka the block
 		public Camp findCamp(Location loc) {
+			// FIXME: Should be Nearest camp
 			if (campfires.size() > 0) {
 				for (Camp c : campfires) {
 					if (c.withInRadius(loc, default_radius)) {
@@ -277,18 +220,19 @@ public class campfire implements Listener {
 				if (camp.owner == null) {
 					Boolean intercepts = false;
 					for (Camp c : campfires) {
-						World cWorld = Bukkit.getWorld(c.dimension);
-						Location cLocation = new Location(cWorld, (double) c.pos.x, (double) c.pos.y, (double) c.pos.z);
-						// FIXME: broken should not be able to claim intercepting/ overlapping
-						if (c != camp) {
+						World cWorld = Bukkit.getWorld(c.dimensionName);
+						Location cLocation = new Location(cWorld, (double) c.posX, (double) c.posY, (double) c.posZ);
+						if (camp != c) {
 							if (camp.withInRadius(cLocation, default_radius * 2)) {
-								if (camp.owner == p.getName()) {
+
+								if (c.owner == p.getName() && camp.owner == p.getName()) {
 									Audience.audience(p).sendActionBar(
 											() -> Component
 													.text(
 															String.format(ChatColor.GOLD
 																	+ String.format("Your claims are overlapping.. claim anyways.", c.owner))));
-								} else {
+								} else if (c.owner != null) {
+									System.out.println("is this working? there is an owner");
 									intercepts = true;
 									Audience.audience(p).sendActionBar(
 											() -> Component
@@ -296,16 +240,35 @@ public class campfire implements Listener {
 															.format(
 																	ChatColor.RED
 																			+ String.format("Sorry, did not claim. overlaps %s's claim.", c.owner))));
+									p.sendMessage(String.format(ChatColor.RED + "Camp is overlapping with %s's claim", c.owner,
+											camp.posX, camp.posY,
+											camp.posZ));
 								}
 							}
 						}
 					}
 					if (intercepts == false) {
-						camp.owner = p.getName();
-						Audience.audience(p).sendActionBar(
-								() -> Component.text(String.format(ChatColor.GOLD + "Congrats, you have claimed this camp!")));
-						this.defineOwnerSettings(p); // YES?
-						// should maybe tell the player how many claims they have now.
+						defineOwnerSettings(p); // YES?
+						for (Owner_settings o : owners) {
+							if (o.playerName == p.getName()) {
+								if (o.numberOfClaims < maxClaims) {
+									o.numberOfClaims += 1;
+									camp.owner = p.getName();
+									Audience.audience(p).sendActionBar(
+											() -> Component.text(String.format(ChatColor.GOLD + "Congrats, you have claimed this camp!")));
+									p.sendMessage(
+											String.format(ChatColor.GOLD + "Nice! Only you and your friends can build here now.", camp.posX,
+													camp.posY,
+													camp.posZ));
+									p.sendMessage(ChatColor.AQUA + "Interact with the campfire for more info.");
+								} else {
+									Audience.audience(p).sendActionBar(
+											() -> Component.text(String.format(ChatColor.RED + "Hey! slow down there.. too many claims.")));
+									p.sendMessage(
+											String.format(ChatColor.RED + "Looks like you've reached the limit on claims %s", maxClaims));
+								}
+							}
+						}
 					}
 				} else {
 					// already claimed
@@ -313,10 +276,10 @@ public class campfire implements Listener {
 					String message = "This has already been claimed, by";
 					if (camp.owner == p.getName()) {
 						Audience.audience(p).sendActionBar(
-								() -> Component.text(String.format(ChatColor.GOLD + "%s you!", message)));
+								() -> Component.text(String.format(ChatColor.GRAY + "%s you!", message)));
 					} else {
 						Audience.audience(p).sendActionBar(
-								() -> Component.text(String.format(ChatColor.GOLD + "%s %s", message, camp.owner)));
+								() -> Component.text(String.format(ChatColor.RED + "%s %s", message, camp.owner)));
 					}
 				}
 
@@ -340,8 +303,8 @@ public class campfire implements Listener {
 			Camp camp = findCamp(loc);
 			if (camp != null) {
 				for (Owner_settings o : owners) {
-					if (camp.owner == o.name) {
-						for (String f : o.friends) {
+					if (camp.owner == o.playerName) {
+						for (String f : o.friendsList) {
 							if (f == p.getName()) {
 								return true;// this is a friend
 							}
@@ -381,11 +344,11 @@ public class campfire implements Listener {
 		}
 
 		// this check is owner has settings, if not it creates it
-		private void defineOwnerSettings(Player p) {
+		public void defineOwnerSettings(Player p) {
 			boolean ownerIsDefined = false;
 			if (owners.size() > 0) {
 				for (Owner_settings o : owners) {// get all settings
-					if (o.name == p.getName()) {
+					if (o.playerName == p.getName()) {
 						ownerIsDefined = true;
 						break;
 					}
@@ -393,8 +356,8 @@ public class campfire implements Listener {
 			}
 			if (!ownerIsDefined) {
 				Owner_settings new_owner = new Owner_settings();
-				new_owner.friends = new ArrayList<String>();
-				new_owner.name = p.getName();
+				new_owner.friendsList = new ArrayList<String>();
+				new_owner.playerName = p.getName();
 				owners.add(new_owner);
 			}
 		}
@@ -405,14 +368,14 @@ public class campfire implements Listener {
 		// considering that a mob may be left underground
 		// somewhere
 		public boolean canPickCrops() {
-			if (this.pick_crops) {
+			if (pick_crops) {
 				return true;
 			}
 			return false;
 		}
 
 		public boolean canKillLiveStock() {
-			if (this.live_stock) {
+			if (live_stock) {
 				return true;
 			}
 			return false;
@@ -426,7 +389,7 @@ public class campfire implements Listener {
 					for (Owner_settings o : owners) {
 						if (o.isOwner(p)) {
 							ArrayList<String> clear_Friends = new ArrayList<>();
-							o.friends = clear_Friends;
+							o.friendsList = clear_Friends;
 							Audience.audience(p).sendActionBar(
 									() -> Component.text(
 											String.format(ChatColor.RED + String.format("All friends have been removed."))));
@@ -444,7 +407,7 @@ public class campfire implements Listener {
 					// should not need to check the size of owners
 					for (Owner_settings o : owners) {
 						boolean contains_friend = false;
-						for (String f : o.friends) {
+						for (String f : o.friendsList) {
 							if (f == d.getName()) {
 								Audience.audience(p).sendActionBar(
 										() -> Component.text(
@@ -452,14 +415,14 @@ public class campfire implements Listener {
 							}
 						}
 						if (contains_friend == false) {
-							o.friends.add(d.getName());
+							o.friendsList.add(d.getName());
 							Audience.audience(p).sendActionBar(
 									() -> Component.text(
-											String.format(ChatColor.BLUE + String.format("Added %s as a friend.", d.getName()))));
+											String.format(ChatColor.AQUA + String.format("Added %s as a friend.", d.getName()))));
 							Audience.audience(d).sendActionBar(
 									() -> Component.text(
 											String
-													.format(ChatColor.BLUE + String.format("%s, has added you as a friend.", p.getName()))));
+													.format(ChatColor.AQUA + String.format("%s, has added you as a friend.", p.getName()))));
 						}
 					}
 				} else {
@@ -479,9 +442,9 @@ public class campfire implements Listener {
 					return true; // you can build/break
 				} else {
 					for (Owner_settings o : owners) {
-						if (o.name == camp.owner) {
-							if (o.friends != null) {
-								for (String f : o.friends) {
+						if (o.playerName == camp.owner) {
+							if (o.friendsList != null) {
+								for (String f : o.friendsList) {
 									if (f == p.getName()) {
 										return true;
 									}
@@ -501,16 +464,23 @@ public class campfire implements Listener {
 			return false;
 		}
 
-		private boolean withInRadius(Location loc, int radius) {
+		public boolean withInRadius(Location loc, int radius) {
 			// checks if block is with the claim
-			if (land.getDistance(this.pos.x, this.pos.z, loc.blockX(), loc.getBlockZ()) <= radius) {
-				if (this.dimension == loc.getWorld().getName()) {
+			System.out.printf("here is the xyz [%s,%s,%s]", posX, posY, posZ);
+			if (getDistance(posX, posZ, loc.blockX(), loc.getBlockZ()) <= radius) {
+				if (dimensionName == loc.getWorld().getName()) {
 					return true;
 				}
 			}
 			return false;
 		}
 
+	}
+
+	public int getDistance(int x1, int z1, int x2, int z2) {
+		int z = x2 - x1;
+		int x = z2 - z1;
+		return (int) Math.sqrt(x * x + z * z);
 	}
 
 	// this is when a block is destroyed.. by any means (even explosoins)
@@ -544,8 +514,7 @@ public class campfire implements Listener {
 		Camp camp = camper.findCamp(ev.getLocation());
 		if (camp != null) {
 			if (camp.owner != null) {
-				if (camp.withInRadius(ev.getLocation(), default_radius * 2)) {// defaut radius + the size of
-																																			// the explosion
+				if (camp.withInRadius(ev.getLocation(), default_radius + (ev.blockList().size() * 2))) {
 					ev.blockList().clear();
 					// ev.setCancelled(true);
 				}
@@ -553,90 +522,87 @@ public class campfire implements Listener {
 		}
 	}
 
-	// @EventHandler
-	// public void onExplosionPrime(ExplosionPrimeEvent ev) {
-	// // int radius = (int) ev.getRadius();
-	// Location loc = ev.getEntity().getLocation();
-	// Camp camp = camper.findCamp(loc);
-	// if (camp != null) {
-	// // TODO:MAKE sure this is withinradius is not needed here
-	// // if (camp.withInRadius(loc, default_radius)) {
-	// if (camp.owner != null) {
-	// ev.setCancelled(true);
-	// } else {
-	// if (camp.withInRadius(loc, (int) ev.getRadius())) {
-	// campfires.remove(camp);
-	// }
-	// }
-	// // }
-	// }
-	// }
-
 	@EventHandler
 	public void onBlockPlace(BlockPlaceEvent ev) {
 		Player player = ev.getPlayer();
 		Block block = ev.getBlock();
 		boolean destroy = false;
 		Camp camp = camper.findCamp(ev.getBlock().getLocation());
-		if (camp != null) { // if in camp
-			if (camp.hasPermission(ev.getBlock().getLocation(), player, true) == true) {
-				if (block.getType().toString().contains("BANNER")) {
-					// claim has no owner.. so claim it
-					camper.claimCamp(block.getLocation(), player);
+		Boolean campPlaced = false;
+
+		if (block.getType() == Material.CAMPFIRE) {
+			Camp new_camp = new Camp();
+			new_camp.posX = block.getX();
+			new_camp.posY = block.getY();
+			new_camp.posZ = block.getZ();
+			new_camp.dimensionName = block.getWorld().getName();
+			boolean sameSpot = false;
+			if (camp != null) {
+				if (camp.hasPermission(ev.getBlock().getLocation(), player, false) == false) {
+					System.out.println("this dude does not have permission");
+					destroy = true;
 				}
-			} else {
-				destroy = true;
 			}
-		} else {
-			if (block.getType() == Material.CAMPFIRE) {
-				Camp new_camp = new Camp();
-				vecPos pos = new vecPos();
-				pos.x = block.getX();
-				pos.y = block.getY();
-				pos.z = block.getZ();
-				new_camp.pos = pos;
-				new_camp.dimension = block.getWorld().getName();
-				boolean sameSpot = false;
-				if (campfires.size() != 0) {
-					for (Camp c : campfires) {
-						if (c.samePos(block.getLocation())) {
-							sameSpot = true;
-							break;
-						}
+			if (destroy == true) {
+				// beacuse destory dont add camp
+
+			} else {
+				if (camp != null) {
+					if (camp.samePos(block.getLocation())) {
+						sameSpot = true;
 					}
 				}
 				if (sameSpot) {
 				} else {
+					campPlaced = true;
 					Audience.audience(player).sendActionBar(
 							() -> Component.text(String.format(ChatColor.GRAY + "Camp placed. consider claiming it.")));
+					player.sendMessage(ChatColor.AQUA + "+Claim a camp by placing a banner nearby.");
 					campfires.add(new_camp);
 					// SAVE starts here
 					saveToFile();
 				}
-			} else if ((block.getType().toString().contains("LOG")) || (block.getType() == Material.CRAFTING_TABLE)
-					|| (block.getType() == Material.LADDER) ||
-					(block.getType().toString().contains("SHULKER")) || (block.getType().toString().contains("TORCH"))
-					|| (block.getType().toString().contains("LANTERN")) || (block.getType() == Material.FURNACE)
-					|| (block.getType() == Material.SCAFFOLDING)) {
-				// // can place it
+			}
+		} else if ((block.getType().toString().contains("LOG")) || (block.getType() == Material.CRAFTING_TABLE)
+				|| (block.getType() == Material.LADDER) ||
+				(block.getType().toString().contains("SHULKER")) || (block.getType().toString().contains("TORCH"))
+				|| (block.getType().toString().contains("LANTERN")) || (block.getType() == Material.FURNACE)
+				|| (block.getType() == Material.SCAFFOLDING)) {
+			// // can place it
+		} else {
+			if (camp != null) { // if in camp
+				if (camp.hasPermission(ev.getBlock().getLocation(), player, true) == true) {
+					// claim has no owner.. so claim it
+					if (block.getType().toString().contains("BANNER")) {
+						camper.claimCamp(block.getLocation(), player);
+					}
+				} else {
+					destroy = true;
+				}
 			} else {
 				destroy = true;
 			}
 		}
-		if (destroy) {
-			if (camp != null) {
-				Audience.audience(player).sendActionBar(
-						() -> Component
-								.text(String.format(ChatColor.GRAY + "Sorry, Camp is owner by %s", camp.owner)));
-			} else {
-				Audience.audience(player).sendActionBar(
-						() -> Component.text(String.format(ChatColor.GRAY + "Need to be near a camp.")));
+
+		if (campPlaced == true) {
+
+		} else {
+			if (destroy) {
+				if (camp != null) {
+					Audience.audience(player).sendActionBar(
+							() -> Component
+									.text(String.format(ChatColor.GRAY + "Sorry, Camp is owner by %s", camp.owner)));
+				} else {
+					Audience.audience(player).sendActionBar(
+							() -> Component.text(String.format(ChatColor.GRAY + "Missing camp.")));
+				}
+				// player.dropItem(true);
+				// ev.getBlock().breakNaturally(true); // TODO: may have to relook at this
+				player.spawnParticle(Particle.CRIT_MAGIC, block.getLocation(), 10, 1, 1, 1);
+				player.playSound(block.getLocation(), Sound.ENTITY_EVOKER_CAST_SPELL, SoundCategory.BLOCKS, 1, 1);
+				ev.setCancelled(true);
 			}
-			// player.dropItem(true);
-			// ev.getBlock().breakNaturally(true); // TODO: may have to relook at this
-			player.spawnParticle(Particle.CRIT_MAGIC, block.getLocation(), 10, 1, 1, 1);
-			player.playSound(block.getLocation(), Sound.ENTITY_EVOKER_CAST_SPELL, SoundCategory.BLOCKS, 1, 1);
-			ev.setCancelled(true);
+
 		}
 	}
 
@@ -659,6 +625,12 @@ public class campfire implements Listener {
 							if (c.owner != null) {
 								Audience.audience(player).sendActionBar(
 										() -> Component.text(String.format(ChatColor.GRAY + "You have removed your claim")));
+								player.sendMessage(ChatColor.GRAY + "You have removed your claim");
+								for (Owner_settings o : owners) {
+									if (o.playerName == player.getName()) {
+										o.numberOfClaims -= 1;
+									}
+								}
 							} else {
 								Audience.audience(player).sendActionBar(
 										() -> Component.text(String.format(ChatColor.GRAY + "Camp removed")));
@@ -681,58 +653,22 @@ public class campfire implements Listener {
 				Player player = (Player) attacker;
 				Player damagedPlayer = (Player) damaged;
 				if (player.getInventory().getItemInMainHand().getType() == Material.SHIELD) {
-					player.sendMessage("yes this should be running");
+					// player.sendMessage("yes this should be running");
 					camper.addFriend(damagedPlayer.getLocation(), player, damagedPlayer);
 				}
 			} else {
 				Camp camp = camper.findCamp(damaged.getLocation());
 				if (camp != null) {
-					if (camp.hasPermission(damaged.getLocation(), (Player) attacker, false) == false) {
-						// NOTE: this is where attack mobs claim permission comes in.
-						// i dont think that FALSE matters, we will see
-						// FIXME: this completly prevent killing anything in a claim
-						switch (damaged.getType()) {
-							case BLAZE:
-							case CAVE_SPIDER:
-							case CREEPER:
-							case ELDER_GUARDIAN:
-							case ENDERMAN:
-							case ENDERMITE:
-							case EVOKER:
-							case GHAST:
-							case GIANT:
-							case GUARDIAN:
-							case HOGLIN:
-							case HUSK:
-							case MAGMA_CUBE:
-							case PIGLIN:
-							case PIGLIN_BRUTE:
-							case PILLAGER:
-							case POLAR_BEAR:
-							case SHULKER:
-							case SILVERFISH:
-							case SKELETON:
-							case SLIME:
-							case SPIDER:
-							case STRAY:
-							case VEX:
-							case VINDICATOR:
-							case WITCH:
-							case WITHER:
-							case WITHER_SKELETON:
-							case ZOGLIN:
-							case ZOMBIE:
-								// continue
-							default:
-								Audience.audience(attacker).sendActionBar(
-										() -> Component.text(
-												String.format(ChatColor.RED + "%s is inside %s's claim",
-														damaged.getType().toString().replace("_", " "), camp.owner)));
-								ev.setCancelled(true);
-								break;
-						}
-
-					}
+					// TODO: implement protecting animals
+					// if (camp.hasPermission(damaged.getLocation(), (Player) attacker, false) ==
+					// false) {
+					// // i dont think that FALSE matters, we will see
+					// Audience.audience(attacker).sendActionBar(
+					// () -> Component.text(
+					// String.format(ChatColor.RED + "%s is inside %s's claim",
+					// damaged.getType().toString().replace("_", " "), camp.owner)));
+					// ev.setCancelled(true);
+					// }
 				}
 			}
 		}
@@ -785,7 +721,18 @@ public class campfire implements Listener {
 				if (player.getInventory().getItemInMainHand().getType() == Material.SHIELD) {
 					camper.removeFriends(player.getLocation(), player);
 				}
-				// TODO: do the onclick display how to do functions
+				if (camp != null) {
+					if (camp.owner == player.getName()) {
+						// TODO: do the onclick display how to do functions
+						player.sendMessage(ChatColor.GOLD + "=====");
+						player.sendMessage(ChatColor.AQUA + "+Remove a claim by breaking the campfire.");
+						player.sendMessage(ChatColor.AQUA
+								+ "+Add friends by giving them a pat wiht your shield. This will allow them access to your claims.");
+						player.sendMessage(ChatColor.AQUA
+								+ "+Remove friends giving any campfire you claimed a pat with a shield.. this will remove all friends.");
+						player.sendMessage(ChatColor.GOLD + "=====");
+					}
+				}
 			}
 		}
 	}
