@@ -48,13 +48,11 @@ import net.kyori.adventure.text.Component;
 //[NEEDS TESTING]
 
 //[DOING]
+//TODO: check if player can still eat foods
 //TODO: clean up code
-//FIXME: on camp claim check if there is another claimed camp within the radius
-//this is not working correctly
-//get the distance of a camp and check to see if the next one is closes.
-//if it is then take that camp and keep checking if anything is smaller.
-
 //TODO: prevent harming animals in claims
+//NOTE: do not prevent harming wolves.. this could be bad if do.
+
 //TODO: add more sounds/effects/and messages.
 
 //TODO:NOTE(Not sure if done..): Make is so admin.. or player with tag
@@ -110,23 +108,25 @@ public class campfire implements Listener {
 	ArrayList<Camp> campfires = new ArrayList<>(); // NEEDS SAVING
 	String saveFileName = "saved_camps.json";
 
+	// WHAT AM I DOING WRONG HERE?//
 	public void saveToFile() {
-		// Gson gson = new Gson();
-		// try (FileWriter writer = new FileWriter(saveFileName)) {
-		// gson.toJson(campfires, writer);
-		// } catch (IOException o) {
-		// }
+		Gson gson = new Gson();
+		try (FileWriter writer = new FileWriter(saveFileName)) {
+			gson.toJson(campfires, writer);
+		} catch (IOException o) {
+		}
 	}
 
 	public void loadFromFile() {
-		// Gson gson = new Gson();
-		// try (FileReader reader = new FileReader(saveFileName)) {
-		// Type arrayType = new TypeToken<ArrayList<Camp>>() {
-		// }.getType();
-		// campfires = gson.fromJson(reader, arrayType);
-		// } catch (IOException o) {
-		// }
+		Gson gson = new Gson();
+		try (FileReader reader = new FileReader(saveFileName)) {
+			Type arrayType = new TypeToken<ArrayList<Camp>>() {
+			}.getType();
+			campfires = gson.fromJson(reader, arrayType);
+		} catch (IOException o) {
+		}
 	}
+	// HUH//
 
 	@EventHandler
 	public void onServerStart(ServerLoadEvent ev) {
@@ -201,13 +201,19 @@ public class campfire implements Listener {
 		}
 
 		public Camp findCamp(Location loc) {
-			// FIXME: Should be Nearest camp
 			if (campfires.size() > 0) {
+				Camp closest_camp = null;
+				int closest_distance = default_radius + 1;
 				for (Camp c : campfires) {
 					if (c.withInRadius(loc, default_radius)) {
-						return c;
+						int camp_distance = getDistance(c.posX, c.posZ, loc.blockX(), loc.getBlockZ());
+						if (camp_distance < closest_distance) {
+							closest_camp = c;
+							closest_distance = camp_distance;
+						}
 					}
 				}
+				return closest_camp;
 			}
 			// not a camp
 			return null;
@@ -224,7 +230,6 @@ public class campfire implements Listener {
 						Location cLocation = new Location(cWorld, (double) c.posX, (double) c.posY, (double) c.posZ);
 						if (camp != c) {
 							if (camp.withInRadius(cLocation, default_radius * 2)) {
-
 								if (c.owner == p.getName() && camp.owner == p.getName()) {
 									Audience.audience(p).sendActionBar(
 											() -> Component
@@ -676,7 +681,7 @@ public class campfire implements Listener {
 	}
 
 	@EventHandler
-	public void onPlayerIntEntity(PlayerInteractEntityEvent ev) {
+	public void onPlayerInteractEntity(PlayerInteractEntityEvent ev) {
 		Player player = ev.getPlayer();
 		if (ev.getRightClicked() instanceof AbstractHorse) {
 			AbstractHorse horse = (AbstractHorse) ev.getRightClicked();
@@ -693,7 +698,7 @@ public class campfire implements Listener {
 	}
 
 	@EventHandler
-	public void onPlayerStartBreaking(PlayerInteractEvent ev) {
+	public void onPlayerInteract(PlayerInteractEvent ev) {
 		Player player = ev.getPlayer();
 		Block blockClicked = ev.getClickedBlock();
 		// get item in hand
