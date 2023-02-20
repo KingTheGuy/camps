@@ -1,10 +1,15 @@
 package com.surv;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -27,6 +32,9 @@ import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.server.ServerLoadEvent;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.yaml.snakeyaml.Yaml;
 
 import com.destroystokyo.paper.event.block.BlockDestroyEvent;
 import com.google.common.reflect.TypeToken;
@@ -46,10 +54,13 @@ import net.kyori.adventure.text.Component;
 //FIXME(): im too dumb, can't figure out of to load/save correctly
 
 //[NEEDS TESTING]
+//TODO(seems ok): check if player can still eat foods
 
 //[DOING]
-//TODO: check if player can still eat foods
+//FIXME: AS FAR AS I KNOW DATA IS loading CORRECTLY but being used incorrectly??
+
 //TODO: clean up code
+
 //TODO: prevent harming animals in claims
 //NOTE: do not prevent harming wolves.. this could be bad if do.
 
@@ -106,24 +117,77 @@ public class campfire implements Listener {
 	Camp camper = new Camp();
 
 	ArrayList<Camp> campfires = new ArrayList<>(); // NEEDS SAVING
-	String saveFileName = "saved_camps.json";
+	String saveFileName = "saved_camps.yaml";
 
 	// WHAT AM I DOING WRONG HERE?//
 	public void saveToFile() {
-		Gson gson = new Gson();
+		// Yaml yaml = new Yaml();
+		// String yamlString = yaml.dump(campfires);
+		StringBuilder sb = new StringBuilder();
+		for (Camp camp : campfires) {
+			sb.append("- dimensionName: ").append(camp.dimensionName).append("\n")
+					.append("  posX: ").append(camp.posX).append("\n")
+					.append("  posY: ").append(camp.posY).append("\n")
+					.append("  posZ: ").append(camp.posZ).append("\n")
+					.append("  owner: ").append(camp.owner).append("\n")
+					.append("  pick_crops: ").append(camp.pick_crops).append("\n")
+					.append("  live_stock: ").append(camp.live_stock).append("\n\n");
+		}
+		String yamlString = sb.toString();
 		try (FileWriter writer = new FileWriter(saveFileName)) {
-			gson.toJson(campfires, writer);
+			// writer.write(yamlString);
+			writer.write(yamlString);
 		} catch (IOException o) {
 		}
 	}
 
 	public void loadFromFile() {
-		Gson gson = new Gson();
-		try (FileReader reader = new FileReader(saveFileName)) {
-			Type arrayType = new TypeToken<ArrayList<Camp>>() {
-			}.getType();
-			campfires = gson.fromJson(reader, arrayType);
-		} catch (IOException o) {
+		// FIXME: im reading the file/ passing the data incorrectly
+		try {
+			File file = new File(saveFileName);
+			Scanner scanner = new Scanner(file);
+			Camp new_claim = new Camp();
+			while (scanner.hasNextLine()) {
+				String line = scanner.nextLine();
+				// TODO: start parseing here
+				// FIXME: the issue maybe that im adding an extra empty campfires.add
+				// a fix maybe to add a boolean on if a new camp is being defined and when its
+				// done
+				String[] splits = line.split(": ", 0);
+				if (line.toString().startsWith("-")) {
+					System.out.println("::this is the START of a claim::");
+				}
+				if (splits[0].contains("dimensionName")) {
+					new_claim.dimensionName = splits[1];
+					System.out.println(String.format("size of name WORLD is: %s should be 5", splits[1].length()));
+				} else if (splits[0].contains("posX")) {
+					new_claim.posX = Integer.parseInt(splits[1]);
+
+				} else if (splits[0].contains("posY")) {
+					new_claim.posY = Integer.parseInt(splits[1]);
+
+				} else if (splits[0].contains("posZ")) {
+					new_claim.posZ = Integer.parseInt(splits[1]);
+
+				} else if (splits[0].contains("owner")) {
+					new_claim.owner = splits[1];
+
+				} else if (splits[0].contains("pick_crops")) {
+					new_claim.pick_crops = Boolean.parseBoolean(splits[1]);
+
+				} else if (splits[0].contains("live_stock")) {
+					new_claim.live_stock = Boolean.parseBoolean(splits[1]);
+				} else if (line.length() == 0) {
+					// send the new calim off
+					campfires.add(new_claim);
+					System.out.println(new_claim.toString());
+					System.out.println("::this is the END of a claim::");
+				}
+				System.out.println(line);
+			}
+			scanner.close();
+		} catch (FileNotFoundException e) {
+			System.out.println("File not found");
 		}
 	}
 	// HUH//
@@ -565,6 +629,7 @@ public class campfire implements Listener {
 					player.sendMessage(ChatColor.AQUA + "+Claim a camp by placing a banner nearby.");
 					campfires.add(new_camp);
 					// SAVE starts here
+					System.out.println(String.format("\n camps are: %s", campfires.toString()));
 					saveToFile();
 				}
 			}
@@ -627,6 +692,7 @@ public class campfire implements Listener {
 							ev.setCancelled(true);
 						} else {
 							campfires.remove(c);
+							saveToFile();
 							if (c.owner != null) {
 								Audience.audience(player).sendActionBar(
 										() -> Component.text(String.format(ChatColor.GRAY + "You have removed your claim")));
@@ -640,7 +706,6 @@ public class campfire implements Listener {
 								Audience.audience(player).sendActionBar(
 										() -> Component.text(String.format(ChatColor.GRAY + "Camp removed")));
 							}
-							saveToFile();
 							break;
 						}
 					}
